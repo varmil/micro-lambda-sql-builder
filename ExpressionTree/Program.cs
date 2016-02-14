@@ -29,14 +29,16 @@ namespace ExpressionTree
             sw.Start();
 
             var id = 0;
+            var str = "abcd";
             var list = new List<string>() { "A", "BBB", "CCCC" };
             var sss = new MySqlLam<Employee>(e => e.Id >= id)
                 .In(e => e.FirstName, list)
-                .And(e => e.LastName != "KAO")
+                .And(e => e.LastName != list[0])
                 .OrderBy(e => e.Id, true)
                 .OrderBy(e => e.FirstName);
 
             var dog = new MySqlLam<Dog>(e => e.Age < 99);
+
 
             sw.Stop();
             Console.WriteLine("経過時間の合計 = {0}", sw.Elapsed);

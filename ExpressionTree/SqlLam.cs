@@ -38,14 +38,15 @@ namespace ExpressionTree
 
         private QueryExpressionVisitor visitor = new QueryExpressionVisitor();
 
-        public MySqlLam(Expression<Func<T, bool>> expression = null)
+        public MySqlLam(Expression<Func<T, bool>> where = null)
         {
-            if (expression != null)
+            if (where != null)
             {
-                And(expression);
+                And(where);
             }
         }
 
+        /// <summary>複数条件の場合はこのメソッドをその回数分呼び出してください。</summary>
         public MySqlLam<T> And(Expression<Func<T, bool>> where)
         {
             var body = where.Body as BinaryExpression;
@@ -55,20 +56,15 @@ namespace ExpressionTree
             }
 
             visitor.And();
+            // TODO: 日付型など特殊なパターンへの対応
             visitor.ParseAnd(body);
             return this;
         }
 
-        // TODO: WHERE ~ IN
+        /// <summary>WHERE IN</summary>
         public MySqlLam<T> In(Expression<Func<T, object>> field, IEnumerable<object> values)
         {
-            var body = field.Body;
-            if (!(body is UnaryExpression) && !(body is MemberExpression))
-            {
-                throw new ArgumentException("expressionType is not acceptable. : " + field.Body.NodeType.ToString());
-            }
-
-            var fieldName = visitor.GetNodeName((dynamic)body);
+            var fieldName = ExprNameResolver.GetExprName(field.Body);
             visitor.And();
             visitor.ParseIsIn(fieldName, values);
             return this;
@@ -77,13 +73,7 @@ namespace ExpressionTree
         /// <summary>複数条件の場合はこのメソッドをその回数分呼び出してください。</summary>
         public MySqlLam<T> OrderBy(Expression<Func<T, object>> field, bool descending = false)
         {
-            var body = field.Body;
-            if (!(body is UnaryExpression) && !(body is MemberExpression))
-            {
-                throw new ArgumentException("expressionType is not acceptable. : " + field.Body.NodeType.ToString());
-            }
-
-            var fieldName = visitor.GetNodeName((dynamic)body);
+            var fieldName = ExprNameResolver.GetExprName(field.Body);
             visitor.ParseOrderBy(fieldName, descending);
             return this;
         }
@@ -153,6 +143,7 @@ namespace ExpressionTree
         private static readonly string PARAMETER_PREFIX = "__P";
         private int paramIndex = 0;
 
+        /// <summary>dapper以外のライブラリに移行した時のために念のためアダプタを作成</summary>
         private ISqlAdapter adapter;
 
         public QueryExpressionVisitor()
@@ -168,20 +159,10 @@ namespace ExpressionTree
         public void ParseAnd(BinaryExpression node)
         {
             // 左辺チェック
-            var left = node.Left as MemberExpression;
-            if (left == null)
-            {
-                throw new NotSupportedException("Left.NodeType is not acceptable. : " + node.Left.NodeType.ToString());
-            }
-            var fieldName = GetNodeName(left);
+            var fieldName = ExprNameResolver.GetExprName(node.Left);
 
-            // 右辺チェック
-            var rightNodeType = node.Right.NodeType;
-            if (rightNodeType != ExpressionType.MemberAccess && rightNodeType != ExpressionType.Constant)
-            {
-                throw new NotSupportedException("Right.NodeType is not acceptable. : " + node.Right.NodeType.ToString());
-            }
-            var fieldValue = GetNodeValue((dynamic)node.Right);
+            // 右辺チェック。リテラル、フィールド、プロパティなどExpressionTypeが様々なのでResolverを使う
+            var fieldValue = ExprValueResolver.GetExprValue(node.Right);
 
             // オペレータチェック
             string oper;
@@ -207,40 +188,6 @@ namespace ExpressionTree
         public void And()
         {
             if (conditions.Count > 0) conditions.Add(" AND ");
-        }
-
-        public string GetNodeName(UnaryExpression node)
-        {
-            return GetNodeName((MemberExpression)node.Operand);
-        }
-
-        public string GetNodeName(MemberExpression node)
-        {
-            return node.Member.Name;
-        }
-
-        /// <summary>MemberExpressionからリフレクションを使ってその値を取得する</summary>
-        private object GetNodeValue(MemberExpression node)
-        {
-            var target = node.Expression != null ? GetNodeValue((dynamic)node.Expression) : null;
-
-            var pi = node.Member as PropertyInfo;
-            if (pi != null)
-            {
-                return pi.GetValue(target, null);
-            }
-            var fi = node.Member as FieldInfo;
-            if (fi != null)
-            {
-                return fi.GetValue(target);
-            }
-
-            throw new NotSupportedException("Unsupported expression type.");
-        }
-
-        private object GetNodeValue(ConstantExpression node)
-        {
-            return node.Value;
         }
 
         private void QueryByField(string fieldName, string op, object fieldValue)
@@ -279,6 +226,63 @@ namespace ExpressionTree
         private void AddParameter(string key, object value)
         {
             if (!Parameters.ContainsKey(key)) Parameters.Add(key, value);
+        }
+    }
+
+    /// <summary>Implementation from "lambda-sql-builder"</summary>
+    public static class ExprValueResolver
+    {
+        public static object GetExprValue(Expression expression)
+        {
+            switch (expression.NodeType)
+            {
+                case ExpressionType.Constant:
+                    return (expression as ConstantExpression).Value;
+                case ExpressionType.Call:
+                    return ResolveMethodCall(expression as MethodCallExpression);
+                case ExpressionType.MemberAccess:
+                    var memberExpr = (expression as MemberExpression);
+                    var obj = GetExprValue(memberExpr.Expression);
+                    return ResolveValue((dynamic)memberExpr.Member, obj);
+                default:
+                    throw new ArgumentException("No suitable ExpressionType found : " + expression.NodeType);
+            }
+        }
+
+        private static object ResolveMethodCall(MethodCallExpression callExpression)
+        {
+            var arguments = callExpression.Arguments.Select(GetExprValue).ToArray();
+            var obj = callExpression.Object != null ? GetExprValue(callExpression.Object) : arguments.First();
+            return callExpression.Method.Invoke(obj, arguments);
+        }
+
+        private static object ResolveValue(PropertyInfo property, object obj)
+        {
+            return property.GetValue(obj, null);
+        }
+
+        private static object ResolveValue(FieldInfo field, object obj)
+        {
+            return field.GetValue(obj);
+        }
+    }
+
+    /// <summary>プロパティ名やフィールド名を文字列で取得したい時に使用する</summary>
+    public static class ExprNameResolver
+    {
+        public static string GetExprName(Expression expression)
+        {
+            switch (expression.NodeType)
+            {
+                case ExpressionType.Convert:
+                    var unaryExpr = (expression as UnaryExpression);
+                    return ((MemberExpression)unaryExpr.Operand).Member.Name;
+                case ExpressionType.MemberAccess:
+                    var memberExpr = (expression as MemberExpression);
+                    return memberExpr.Member.Name;
+                default:
+                    throw new ArgumentException("No suitable ExpressionType found : " + expression.NodeType);
+            }
         }
     }
 }
