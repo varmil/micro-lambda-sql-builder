@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MicroSqlBuilder", "ExpressionTree\MicroSqlBuilder.csproj", "{D38769E9-A90B-4007-BBD8-4030773F4B34}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MicroSqlBuilder", "MicroSqlBuilder\MicroSqlBuilder.csproj", "{D38769E9-A90B-4007-BBD8-4030773F4B34}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MicroSqlBuilder.Test", "ExpressionTree.Test\MicroSqlBuilder.Test.csproj", "{A3A247FA-2ACA-4AAA-BF90-90DAF5AC605D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MicroSqlBuilder.Test", "MicroSqlBuilder.Test\MicroSqlBuilder.Test.csproj", "{A3A247FA-2ACA-4AAA-BF90-90DAF5AC605D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

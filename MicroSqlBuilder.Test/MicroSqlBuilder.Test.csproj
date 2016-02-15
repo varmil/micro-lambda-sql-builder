@@ -61,7 +61,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ExpressionTree\MicroSqlBuilder.csproj">
+    <ProjectReference Include="..\MicroSqlBuilder\MicroSqlBuilder.csproj">
       <Project>{d38769e9-a90b-4007-bbd8-4030773f4b34}</Project>
       <Name>MicroSqlBuilder</Name>
     </ProjectReference>

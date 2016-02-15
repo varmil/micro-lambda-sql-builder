@@ -14,7 +14,6 @@ namespace MicroSqlBuilder
     {
         static void Main(string[] args)
         {
-            var id = 7770;
             var list = new List<string>() { "A", "BBB", "CCCC" };
             var sql = new Sqlam<Employee>()
                 .And(e => e.CreatedAt > DateTime.Now.AddDays(1))
