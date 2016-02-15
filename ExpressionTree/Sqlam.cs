@@ -6,7 +6,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace ExpressionTree
+namespace MicroSqlBuilder
 {
     /// <summary>
     /// SQL Builder Library. WHERE句以降のクエリだけを出力対象にすることで小さく保つ

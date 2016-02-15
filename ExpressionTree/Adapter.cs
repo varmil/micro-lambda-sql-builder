@@ -1,6 +1,7 @@
-﻿using Humanizer;
+﻿using System.Text.RegularExpressions;
+using Humanizer;
 
-namespace ExpressionTree
+namespace MicroSqlBuilder
 {
     interface ISqlAdapter
     {
@@ -13,6 +14,8 @@ namespace ExpressionTree
     {
         public string QueryString(string conditions, string order, string limit, string offset)
         {
+            // This is perfect trimming, however low performance
+            //return Regex.Replace(string.Format("{0} {1} {2} {3}", conditions, order, limit, offset), @"\s+", " ").Trim();
             return string.Format("{0} {1} {2} {3}", conditions, order, limit, offset);
         }
 
