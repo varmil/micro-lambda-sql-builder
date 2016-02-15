@@ -6,13 +6,8 @@ using Dapper;
 using System.Data.SqlClient;
 using LambdaSqlBuilder;
 using System.Diagnostics;
+using Humanizer;
 
-// BinaryExpression（二項演算）, UnaryExpression（単項式）, ConstantExpression（定数）
-// TODO: Pascal -- Snake変換など
-
-// "WHERE - IN" の書き方例
-// ServiceStack.OrmLite: q => Sql.In(q.City, "London", "Madrid", "Berlin")
-// lambda-sql-builder: WhereIsIn(c => c.CategoryName, new object[] { "Beverages", "Condiments" })
 namespace ExpressionTree
 {
     class Program
@@ -21,27 +16,28 @@ namespace ExpressionTree
         {
             //var conn = new SqlConnection("connectionstring");
 
-            //// MySqlLam
-            //Expression<Func<Employee, bool>> exp = (e) => e.Id > 123 && e.FirstName == "John" && e.LastName == "Abc" && e.Id == 456;
-            //var sql = new MySqlLam<Employee>(exp);
-
-            var id = 0;
-            var str = "abcd";
+            var id = 7770;
             var list = new List<string>() { "A", "BBB", "CCCC" };
-            var sss = new MySqlLam<Employee>(e => e.Id >= id)
+            var tomorrow = DateTime.Now.AddDays(1);
+            var sql = new Sqlam<Employee>()
+                .And(e => e.CreatedAt > DateTime.Now.AddDays(1))
                 .In(e => e.FirstName, list)
-                .And(e => e.LastName != list[0])
-                .OrderBy(e => e.Id, true)
-                .OrderBy(e => e.FirstName);
+                .OrderBy(e => e.Id, Order.Desc)
+                .OrderBy(e => e.FirstName)
+                .Offset(10)
+                .Limit(10)
+            ;
 
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            //var sss2 = new MySqlLam<Employee>(e => e.LastName == list[2]);
-            //var dog = new MySqlLam<Dog>(e => e.Age < 99);
+            var sss2 = new Sqlam<Employee>(e => e.Weapon1 == id.ToString());
+            //var dog = new Sqlam<Dog>(e => e.Age < 99);
 
             sw.Stop();
             Console.WriteLine("経過時間の合計 = {0}", sw.Elapsed);
+            Console.WriteLine(sql.Query);
+            sql.Parameters.Select(p => p.Key + " " + p.Value).ToList().ForEach(s => Console.WriteLine(s));
 
             Console.ReadKey();
         }
@@ -49,15 +45,16 @@ namespace ExpressionTree
 
     public class Employee : IOrm
     {
-        public int Id { get; set; }
+        public int? Id { get; set; }
         public string FirstName { get; set; }
-        public string LastName { get; set; }
+        public string Weapon1 { get; set; }
+        public DateTime? CreatedAt { get; set; }
     }
 
     public class Dog : IOrm
     {
         public string Name { get; set; }
-        public int Age { get; set; }
+        public int? Age { get; set; }
     }
 
     public interface IOrm

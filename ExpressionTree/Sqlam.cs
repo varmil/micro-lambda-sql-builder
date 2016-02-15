@@ -5,40 +5,25 @@ using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ExpressionTree
 {
     /// <summary>
-    /// SQL Builder Library. WHERE句以降のクエリだけを出力対象にすることで小さく保つ予定
+    /// SQL Builder Library. WHERE句以降のクエリだけを出力対象にすることで小さく保つ
     /// </summary>
-    public class MySqlLam<T> where T : IOrm
+    public class Sqlam<T> where T : IOrm
     {
         /// <summary>構築したクエリ文字列</summary>
-        //public string Query
-        //{
-        //    get
-        //    {
-        //        where = (where != null) ? " WHERE " + where : null;
-        //        orderBy = (orderBy != null) ? " ORDER BY " + orderBy : null;
-        //        limit = (limit != null) ? " LIMIT " + limit : null;
-        //        offset = (offset != null) ? " OFFSET " + offset : null;
-        //        return where + orderBy + limit + offset;
-        //    }
-        //}
+        public string Query { get { return parser.Query; } }
 
         /// <summary>構築したクエリに紐づくパラメタ辞書</summary>
-        //public IDictionary<string, object> Parameters { get { return visitor. } }
+        public IDictionary<string, object> Parameters { get { return parser.Parameters; } }
 
-        private string where;
-        private string orderBy;
-        private string limit;
-        private string offset;
+        /// <summary>式木を解析してSQL文字列に変換、格納するクラス</summary>
+        private ExpressionParser parser = new ExpressionParser();
 
-        private QueryExpressionVisitor visitor = new QueryExpressionVisitor();
-
-        public MySqlLam(Expression<Func<T, bool>> where = null)
+        // TODO: シャーディングされたテーブルネームを考慮する？
+        public Sqlam(Expression<Func<T, bool>> where = null, string tableName = null)
         {
             if (where != null)
             {
@@ -46,74 +31,86 @@ namespace ExpressionTree
             }
         }
 
-        /// <summary>複数条件の場合はこのメソッドをその回数分呼び出してください。</summary>
-        public MySqlLam<T> And(Expression<Func<T, bool>> where)
+        /// <summary>
+        /// 左辺にフィールド、右辺に値を入れてください。
+        /// 複数条件の場合はこのメソッドをその回数分呼び出してください。
+        /// ex)
+        ///     NG: .And(e => e.Id > 123 && e.FirstName == "John")
+        ///     OK: .And(e => e.Id > 123).And(e => e.FirstName == "John")
+        /// </summary>
+        public Sqlam<T> And(Expression<Func<T, bool>> where)
         {
             var body = where.Body as BinaryExpression;
             if (body == null)
             {
-                throw new ArgumentException("expression is not BinaryExpression. : " + where.Body.NodeType.ToString());
+                throw new ArgumentException("expression is not BinaryExpression. : " + where.Body.NodeType);
             }
 
-            visitor.And();
-            // TODO: 日付型など特殊なパターンへの対応
-            visitor.ParseAnd(body);
+            parser.And();
+            parser.ParseAnd(body);
             return this;
         }
 
         /// <summary>WHERE IN</summary>
-        public MySqlLam<T> In(Expression<Func<T, object>> field, IEnumerable<object> values)
+        public Sqlam<T> In(Expression<Func<T, object>> field, IEnumerable<object> values)
         {
             var fieldName = ExprNameResolver.GetExprName(field.Body);
-            visitor.And();
-            visitor.ParseIsIn(fieldName, values);
+            parser.And();
+            parser.ParseIsIn(fieldName, values);
             return this;
         }
 
         /// <summary>複数条件の場合はこのメソッドをその回数分呼び出してください。</summary>
-        public MySqlLam<T> OrderBy(Expression<Func<T, object>> field, bool descending = false)
+        public Sqlam<T> OrderBy(Expression<Func<T, object>> field, Order order = Order.Asc)
         {
             var fieldName = ExprNameResolver.GetExprName(field.Body);
-            visitor.ParseOrderBy(fieldName, descending);
+            parser.ParseOrderBy(fieldName, order);
             return this;
         }
 
-        // TODO: LIMIT
-        public MySqlLam<T> Limit(int number)
+        public Sqlam<T> Limit(int number)
         {
+            parser.ParseLimit(number);
             return this;
         }
 
-        // TODO: Offset
-        public MySqlLam<T> Offset(int number)
+        public Sqlam<T> Offset(int number)
         {
+            parser.ParseOffset(number);
             return this;
         }
     }
 
 
+    public enum Order
+    {
+        Asc,
+        Desc
+    }
+
+
     /// <summary>
-    /// 式木をparseするためのクラス。VisitorPatternを使用。SQL生成に特化しています。
-    /// 参考：http://qiita.com/takeshik/items/438b845154c6c21fcba5
+    /// 式木をparseするためのクラス。SQL生成に特化しています。
     /// </summary>
-    public class QueryExpressionVisitor /*: ExpressionVisitor*/
+    class ExpressionParser /*: ExpressionVisitor*/
     {
         /// <summary>クエリ文字列とパラメタを格納した辞書</summary>
-        public string Query { get; private set; }
+        public string Query { get { return adapter.QueryString(Conditions, OrderBy, Limit, Offset); } }
         public IDictionary<string, object> Parameters { get; private set; }
 
-        private Dictionary<ExpressionType, string> operationDictionary = new Dictionary<ExpressionType, string>()
-                                                                              {
-                                                                                  { ExpressionType.Equal, "="},
-                                                                                  { ExpressionType.NotEqual, "!="},
-                                                                                  { ExpressionType.GreaterThan, ">"},
-                                                                                  { ExpressionType.LessThan, "<"},
-                                                                                  { ExpressionType.GreaterThanOrEqual, ">="},
-                                                                                  { ExpressionType.LessThanOrEqual, "<="},
-                                                                                  { ExpressionType.AndAlso, "AND"},
-                                                                                  { ExpressionType.OrElse, "OR"}
-                                                                              };
+        private Dictionary<ExpressionType, string> operatorDict = new Dictionary<ExpressionType, string>()
+                                                                {
+                                                                    { ExpressionType.Equal, "="},
+                                                                    { ExpressionType.NotEqual, "!="},
+                                                                    { ExpressionType.GreaterThan, ">"},
+                                                                    { ExpressionType.LessThan, "<"},
+                                                                    { ExpressionType.GreaterThanOrEqual, ">="},
+                                                                    { ExpressionType.LessThanOrEqual, "<="},
+                                                                    { ExpressionType.AndAlso, "AND"},
+                                                                    { ExpressionType.OrElse, "OR"}
+                                                                };
 
+        private List<string> conditions = new List<string>();
         private string Conditions
         {
             get
@@ -125,7 +122,8 @@ namespace ExpressionTree
             }
         }
 
-        private string Order
+        private List<string> sortList = new List<string>();
+        private string OrderBy
         {
             get
             {
@@ -136,25 +134,45 @@ namespace ExpressionTree
             }
         }
 
-        private List<string> conditions = new List<string>();
-        private List<string> sortList = new List<string>();
+        private int limit;
+        private string Limit
+        {
+            get
+            {
+                if (limit == default(int))
+                    return "";
+                else
+                    return "LIMIT " + limit;
+            }
+        }
 
-        /// <summary>dapper-dot-netのパラメタ部分の文字列に使用</summary>
+        private int offset;
+        private string Offset
+        {
+            get
+            {
+                if (offset == default(int))
+                    return "";
+                else
+                    return "OFFSET " + offset;
+            }
+        }
+
+        /// <summary>SQLパラメタ部分の文字列に使用</summary>
         private static readonly string PARAMETER_PREFIX = "__P";
         private int paramIndex = 0;
 
         /// <summary>dapper以外のライブラリに移行した時のために念のためアダプタを作成</summary>
         private ISqlAdapter adapter;
 
-        public QueryExpressionVisitor()
+        public ExpressionParser()
         {
             this.Parameters = new ExpandoObject();
             this.adapter = new DapperAdapter();
         }
 
         /// <summary>
-        /// 二項演算子。WHERE条件式の構築に使用
-        /// 複数条件はサポートしておりません。 ex) NG: e.Id > 123 && e.FirstName == "John"
+        /// 二項演算子。左辺にフィールド、右辺に値。WHERE条件式の構築に使用
         /// </summary>
         public void ParseAnd(BinaryExpression node)
         {
@@ -166,23 +184,32 @@ namespace ExpressionTree
 
             // オペレータチェック
             string oper;
-            if (!operationDictionary.TryGetValue(node.NodeType, out oper))
+            if (!operatorDict.TryGetValue(node.NodeType, out oper))
             {
-                throw new KeyNotFoundException("Suitable operator not found. Key is " + node.NodeType.ToString());
+                throw new KeyNotFoundException("Suitable operator not found. Key is " + node.NodeType);
             }
 
             QueryByField(fieldName, oper, fieldValue);
         }
 
-        /// <summary>ORDER BYのフィールド指定に使用</summary>
-        public void ParseOrderBy(string fieldName, bool descending = false)
-        {
-            QueryByOrder(fieldName, descending);
-        }
-
         public void ParseIsIn(string fieldName, IEnumerable<object> values)
         {
             QueryByIsIn(fieldName, values);
+        }
+
+        public void ParseOrderBy(string fieldName, Order order)
+        {
+            QueryByOrder(fieldName, order);
+        }
+
+        public void ParseLimit(int limit)
+        {
+            this.limit = limit;
+        }
+
+        public void ParseOffset(int offset)
+        {
+            this.offset = offset;
         }
 
         public void And()
@@ -193,7 +220,7 @@ namespace ExpressionTree
         private void QueryByField(string fieldName, string op, object fieldValue)
         {
             var paramId = NextParamId();
-            var newCondition = string.Format("{0} {1} {2}", fieldName, op, adapter.Parameter(paramId));
+            var newCondition = string.Format("{0} {1} {2}", adapter.Field(fieldName), op, adapter.Parameter(paramId));
             AddParameter(paramId, fieldValue);
             conditions.Add(newCondition);
         }
@@ -207,13 +234,14 @@ namespace ExpressionTree
                 return adapter.Parameter(paramId);
             });
 
-            var newCondition = string.Format("{0} IN ({1})", fieldName, string.Join(",", paramIds));
+            var newCondition = string.Format("{0} IN ({1})", adapter.Field(fieldName), string.Join(",", paramIds));
             conditions.Add(newCondition);
         }
 
-        private void QueryByOrder(string fieldName, bool descending = false)
+        private void QueryByOrder(string fieldName, Order order)
         {
-            if (descending) fieldName += " DESC";
+            fieldName = adapter.Field(fieldName);
+            if (order == Order.Desc) fieldName += " DESC";
             sortList.Add(fieldName);
         }
 
@@ -229,8 +257,9 @@ namespace ExpressionTree
         }
     }
 
-    /// <summary>Implementation from "lambda-sql-builder"</summary>
-    public static class ExprValueResolver
+
+    /// <summary>プロパティやフィールド、関数コール結果の「値」を取得する。 "lambda-sql-builder" をベースに改善</summary>
+    static class ExprValueResolver
     {
         public static object GetExprValue(Expression expression)
         {
@@ -238,11 +267,13 @@ namespace ExpressionTree
             {
                 case ExpressionType.Constant:
                     return (expression as ConstantExpression).Value;
+                case ExpressionType.Convert:
+                    return GetExprValue((expression as UnaryExpression).Operand);
                 case ExpressionType.Call:
                     return ResolveMethodCall(expression as MethodCallExpression);
                 case ExpressionType.MemberAccess:
                     var memberExpr = (expression as MemberExpression);
-                    var obj = GetExprValue(memberExpr.Expression);
+                    var obj = memberExpr.Expression != null ? GetExprValue(memberExpr.Expression) : null;
                     return ResolveValue((dynamic)memberExpr.Member, obj);
                 default:
                     throw new ArgumentException("No suitable ExpressionType found : " + expression.NodeType);
@@ -267,8 +298,9 @@ namespace ExpressionTree
         }
     }
 
+
     /// <summary>プロパティ名やフィールド名を文字列で取得したい時に使用する</summary>
-    public static class ExprNameResolver
+    static class ExprNameResolver
     {
         public static string GetExprName(Expression expression)
         {

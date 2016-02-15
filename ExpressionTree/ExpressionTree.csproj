@@ -37,6 +37,10 @@
       <HintPath>..\packages\Dapper.1.42\lib\net45\Dapper.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Humanizer, Version=2.0.1.0, Culture=neutral, PublicKeyToken=979442b78dfc278e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Humanizer.Core.2.0.1\lib\dotnet\Humanizer.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="LambdaSqlBuilder, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\LambdaSqlBuilder.0.9\lib\net40\LambdaSqlBuilder.dll</HintPath>
       <Private>True</Private>
@@ -54,7 +58,7 @@
     <Compile Include="Adapter.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SqlLam.cs" />
+    <Compile Include="Sqlam.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
