@@ -27,8 +27,11 @@ namespace MicroSqlBuilder
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            var sql2 = new Sqlam<Employee>(e => e.Weapon1 == id.ToString());
-            //var dog = new Sqlam<Dog>(e => e.Age < 99);
+            for (int i = 0; i < 500; i++)
+            {
+                var str = list[1] + i.ToString();
+                var sql2 = new Sqlam<Employee>(e => e.Weapon1 == str);
+            }
 
             sw.Stop();
             Console.WriteLine("経過時間の合計 = {0}", sw.Elapsed);

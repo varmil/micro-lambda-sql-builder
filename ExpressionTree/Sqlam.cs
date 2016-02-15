@@ -11,7 +11,7 @@ namespace MicroSqlBuilder
     /// <summary>
     /// SQL Builder Library. WHERE句以降のクエリだけを出力対象にすることで小さく保つ
     /// </summary>
-    public class Sqlam<T> where T : IOrm
+    public class Sqlam<T> where T : class
     {
         /// <summary>構築したクエリ文字列</summary>
         public string Query { get { return parser.Query; } }
@@ -92,7 +92,7 @@ namespace MicroSqlBuilder
     /// <summary>
     /// 式木をparseするためのクラス。SQL生成に特化しています。
     /// </summary>
-    class ExpressionParser /*: ExpressionVisitor*/
+    class ExpressionParser
     {
         /// <summary>クエリ文字列とパラメタを格納した辞書</summary>
         public string Query { get { return adapter.QueryString(Conditions, OrderBy, Limit, Offset); } }
