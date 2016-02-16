@@ -26,16 +26,16 @@ namespace MicroSqlBuilder
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            for (int i = 0; i < 500; i++)
+            for (int i = 0; i < 10000; i++)
             {
                 var str = list[1] + i.ToString();
                 var sql2 = new Sqlam<Employee>(e => e.Weapon1 == str);
             }
 
             sw.Stop();
-            Console.WriteLine("経過時間の合計 = {0}", sw.Elapsed);
-            Console.WriteLine(sql.Query);
-            sql.Parameters.Select(p => p.Key + " " + p.Value).ToList().ForEach(s => Console.WriteLine(s));
+            Debug.WriteLine("経過時間の合計 = {0}", sw.Elapsed);
+            Debug.WriteLine(sql.Query);
+            sql.Parameters.Select(p => p.Key + " " + p.Value).ToList().ForEach(s => Debug.WriteLine(s));
             Console.ReadKey();
         }
     }

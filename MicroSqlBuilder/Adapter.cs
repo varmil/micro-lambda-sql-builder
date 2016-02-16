@@ -1,5 +1,7 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Humanizer;
+using System.Linq;
 
 namespace MicroSqlBuilder
 {
@@ -14,9 +16,9 @@ namespace MicroSqlBuilder
     {
         public string QueryString(string conditions, string order, string limit, string offset)
         {
-            // This is perfect trimming, however low performance
-            //return Regex.Replace(string.Format("{0} {1} {2} {3}", conditions, order, limit, offset), @"\s+", " ").Trim();
-            return string.Format("{0} {1} {2} {3}", conditions, order, limit, offset);
+            IEnumerable<string> clauses = new[] { conditions, order, limit, offset };
+            clauses = clauses.Where(s => !string.IsNullOrEmpty(s));
+            return string.Join(" ", clauses);
         }
 
         public string Field(string fieldName)
